@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestor de Compras</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f3f3;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+    }
+    .contenedor {
+      max-width: 500px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      background: #eee;
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .eliminar {
+      background: #e74c3c;
+      border: none;
+      color: white;
+      width: 25px;
+      height: 25px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0;
+      text-align: center;
+      line-height: 25px;
+    }
+    .eliminar:hover {
+      background: #c73232;
+    }
+    .total {
+      margin-top: 15px;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: right;
+    }
+    .descargar {
+      margin-top: 10px;
+      background: #27ae60;
+    }
+    .descargar:hover {
+      background: #1e8449;
+    }
+  </style>
+</head>
+<body>
+  <div class="contenedor">
+    <h1>Gestor de Compras</h1>
+    
+    <input type="text" id="producto" placeholder="Nombre del producto">
+    <input type="number" id="precio" placeholder="Precio unitario">
+    <input type="number" id="cantidad" placeholder="Cantidad" min="1" value="1">
+    <button onclick="agregarProducto()">Agregar</button>
+    
+    <ul id="lista"></ul>
+    
+    <div class="total">Total: $<span id="total">0</span></div>
+    <button class="descargar" onclick="descargarExcel()">Descargar Excel</button>
+  </div>
+
+  <script>
+    let total = 0;
+    let productos = JSON.parse(localStorage.getItem("productos")) || [];
+
+    function mostrarLista() {
+      const lista = document.getElementById("lista");
+      lista.innerHTML = "";
+      total = 0;
+
+      productos.forEach((item, index) => {
+        const li = document.createElement("li");
+        li.innerHTML = `${item.producto} - $${item.subtotal} 
+          <button class="eliminar" onclick="eliminarProducto(${index})">X</button>`;
+        lista.appendChild(li);
+        total += item.subtotal;
+      });
+
+      document.getElementById("total").textContent = total;
+      localStorage.setItem("productos", JSON.stringify(productos));
+    }
+
+    function agregarProducto() {
+      const producto = document.getElementById("producto").value.trim();
+      const precio = parseInt(document.getElementById("precio").value);
+      const cantidad = parseInt(document.getElementById("cantidad").value);
+
+      if (producto === "" || isNaN(precio) || precio <= 0 || isNaN(cantidad) || cantidad <= 0) {
+        alert("Ingresa un producto, precio y cantidad válidos");
+        return;
+      }
+
+      const subtotal = precio * cantidad;
+
+      productos.push({ producto, subtotal });
+      mostrarLista();
+
+      document.getElementById("producto").value = "";
+      document.getElementById("precio").value = "";
+      document.getElementById("cantidad").value = "1";
+      document.getElementById("producto").focus();
+    }
+
+    function eliminarProducto(index) {
+      productos.splice(index, 1);
+      mostrarLista();
+    }
+
+    // Enter para moverse entre campos y agregar
+    document.getElementById("producto").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") document.getElementById("precio").focus();
+    });
+    document.getElementById("precio").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") document.getElementById("cantidad").focus();
+    });
+    document.getElementById("cantidad").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") agregarProducto();
+    });
+
+    // Descargar en Excel con TOTAL separado y resaltado
+    function descargarExcel() {
+      const datos = productos.map(item => ({
+        Producto: item.producto,
+        "Precio Total": item.subtotal
+      }));
+
+      // Fila vacía
+      datos.push({});
+      // Total
+      datos.push({ Producto: "TOTAL", "Precio Total": total });
+
+      // Crear hoja
+      const hoja = XLSX.utils.json_to_sheet(datos);
+
+      // Resaltar TOTAL (última fila)
+      const ultimaFila = datos.length + 1; // +1 por encabezados
+      const rangoTotal = "A" + ultimaFila + ":B" + ultimaFila;
+
+      if (!hoja["!ref"]) hoja["!ref"] = "A1:B" + ultimaFila;
+      if (!hoja["!merges"]) hoja["!merges"] = [];
+
+      // Aplicar estilo básico (fondo y negrita)
+      for (let celda of ["A" + ultimaFila, "B" + ultimaFila]) {
+        if (hoja[celda]) {
+          hoja[celda].s = {
+            fill: { fgColor: { rgb: "FFD966" } }, // Amarillo claro
+            font: { bold: true }
+          };
+        }
+      }
+
+      const libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, hoja, "Compras");
+      XLSX.writeFile(libro, "lista_compras.xlsx");
+    }
+
+    // Mostrar lista al cargar
+    mostrarLista();
+  </script>
+</body>
+</html>
